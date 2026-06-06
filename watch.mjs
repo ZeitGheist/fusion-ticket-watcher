@@ -52,6 +52,11 @@ const CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || "").split(",").map((s) => s.tr
 const MAX_DEEP_FETCHES = 12; // höchstens so viele Threads pro Lauf tief reinlesen (Höflichkeit)
 const MAX_PINGS = 10;        // Drossel gegen Flut
 const FETCH_DELAY_MS = 400;  // kleine Pause zwischen Thread-Abrufen
+
+// KI-Check (optional): klassifiziert Antworten nach Sinn statt nach Stichwort.
+// Ohne ANTHROPIC_API_KEY fällt der Wächter automatisch auf die Stichwort-Logik zurück.
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const MODEL = "claude-haiku-4-5-20251001";
 // =================================================================================
 
 const DEBUG = process.argv.includes("--debug");
@@ -160,6 +165,41 @@ function isReplyOffer(text) {
   return true;
 }
 
+// KI-Urteil über eine Antwort. Liefert {offer, reason, src}. Ohne Key: Stichwort-Fallback.
+async function judgeReply(title, text) {
+  if (!ANTHROPIC_API_KEY) return { offer: isReplyOffer(text), reason: "Stichwort-Fallback", src: "stichwort" };
+  const prompt =
+`Forum "Suche & Biete Fusion-Festival-Tickets". Thread-Titel: "${title}".
+Jemand schrieb diese Antwort:
+"""${text.slice(0, 800)}"""
+
+Bietet diese Person selbst ein Ticket an (abgeben/verkaufen/weitergeben)?
+"false" bei: selbst suchen, Hochschieben ("up"), Nachfragen, Zitate, Sonstiges.
+Antworte NUR mit JSON: {"offer": true oder false, "grund": "kurz"}`;
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: MODEL, max_tokens: 80, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!r.ok) {
+      console.error("KI-Fehler:", r.status, (await r.text()).slice(0, 200));
+      return { offer: isReplyOffer(text), reason: "KI-Fehler, Fallback", src: "stichwort" };
+    }
+    const data = await r.json();
+    const out = (data.content?.[0]?.text || "").trim();
+    const m = out.match(/\{[\s\S]*\}/);
+    if (m) {
+      const j = JSON.parse(m[0]);
+      return { offer: j.offer === true, reason: j.grund || "", src: "ki" };
+    }
+    return { offer: isReplyOffer(text), reason: "KI unlesbar, Fallback", src: "stichwort" };
+  } catch (e) {
+    console.error("KI-Fehler:", e.message);
+    return { offer: isReplyOffer(text), reason: "KI-Fehler, Fallback", src: "stichwort" };
+  }
+}
+
 async function notify(item) {
   const text =
     item.type === "reply"
@@ -206,8 +246,12 @@ async function main() {
         const posts = extractPosts(await fetchText(`${BASE}/viewtopic.php?p=${r.lastPid}`));
         console.log(`Thread "${r.title}" (${r.replies} Antworten):`);
         for (const p of posts) {
-          const tag = isReplyOffer(p.text) ? "✅ ANGEBOT" : "··";
-          console.log(`   ${tag}  p${p.pid} von ${p.author}: ${p.text.slice(0, 110) || "(kein Text)"}`);
+          if (p.text.length < 12) {
+            console.log(`   ··          p${p.pid} von ${p.author}: ${p.text || "(kein Text)"}`);
+            continue;
+          }
+          const v = await judgeReply(r.title, p.text);
+          console.log(`   ${v.offer ? "✅ ANGEBOT " : "··         "}[${v.src}] p${p.pid} von ${p.author}: ${p.text.slice(0, 95)}  ${v.reason ? "→ " + v.reason : ""}`);
         }
         await sleep(FETCH_DELAY_MS);
       } catch (e) {
@@ -253,7 +297,9 @@ async function main() {
         for (const p of posts) {
           if (prev && Number(p.pid) <= Number(prev)) continue; // schon bekannt
           if (notified.has("p:" + p.pid)) continue;
-          if (isReplyOffer(p.text)) {
+          if (p.text.length < 12) continue; // Bumps/Emojis überspringen, kein KI-Aufruf nötig
+          const verdict = await judgeReply(r.title, p.text);
+          if (verdict.offer) {
             queue.push({
               type: "reply", tid: r.tid, title: r.title, pid: p.pid,
               author: p.author, snippet: p.text.slice(0, 200),
