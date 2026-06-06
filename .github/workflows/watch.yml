@@ -2,7 +2,7 @@ name: Fusion Ticket Watcher
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # alle ~10 Minuten (GitHub kann unter Last etwas verzögern)
+    - cron: "*/20 * * * *"   # alle ~20 Minuten (GitHub kann unter Last etwas verzögern)
   workflow_dispatch: {}       # erlaubt manuellen Start per Knopf
 
 concurrency:
