@@ -176,8 +176,9 @@ Text der Person:
 """${text.slice(0, 800)}"""
 
 Bietet diese Person ihr EIGENES Fusion-Festival-EINTRITTSTICKET (Personenticket) zur Weitergabe oder zum Verkauf an? Nur ein echtes Eintrittsticket zählt, alles andere ist false.
-- true NUR bei klarer Abgabe des eigenen Tickets (z.B. "gebe mein Ticket ab", "mein Ticket geht an dich", "kannst meins haben", "hätte noch eins abzugeben").
-- false bei: selbst ein Ticket suchen/annehmen/abnehmen wollen ("würde es dir abnehmen", "nehme es", "take the burden"); Hochschieben ("up"); Fragen ("hat jemand noch eins zu vergeben?"); nur etwas ANDERES anbieten als ein Eintrittsticket, z.B. Autoticket/Fahrzeugticket, Mitfahrgelegenheit oder Plätze im Auto (auch "Plätze von Köln zur Fusion"), Schlafplatz, Gegenleistung; Zitate; Sonstiges.
+- true NUR bei klarer Abgabe des eigenen Tickets ("gebe mein Ticket ab", "mein Ticket geht an dich", "kannst meins haben", "hätte noch eins abzugeben", "verkaufe mein Ticket").
+- false bei JEDEM Such-/Käufer-Signal, auch wenn nebenbei Codes oder Gebühren genannt werden: "ich suche", "wir suchen", "brauche noch", "nehmen wir", "ich nehme", "würde es dir abnehmen", "kümmere mich um die Tickets", "Übernahme der Stornogebühren/Gebühren", "take the burden".
+- false auch bei: Hochschieben ("up"); Fragen ("hat jemand noch eins zu vergeben?"); nur etwas ANDERES anbieten als ein Eintrittsticket (Autoticket/Fahrzeugticket, Mitfahrgelegenheit/Plätze im Auto wie "Plätze von Köln zur Fusion", Schlafplatz, Gegenleistung); Zitate; Sonstiges.
 Antworte NUR mit JSON: {"offer": true oder false, "grund": "kurz"}`;
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
