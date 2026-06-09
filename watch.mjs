@@ -49,9 +49,11 @@ const REPLY_SEEK_FRAMES = [
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || "").split(",").map((s) => s.trim()).filter(Boolean);
 
-const MAX_DEEP_FETCHES = 12; // höchstens so viele Threads pro Lauf tief reinlesen (Höflichkeit)
+const INDEX_PAGES = 2;       // Übersichts-Seiten abklappern (Seite 1 + 2)
+const PER_PAGE = 25;         // Themen pro Seite (phpBB-Standard hier)
+const MAX_DEEP_FETCHES = 25; // höchstens so viele Threads pro Lauf tief reinlesen (Höflichkeit)
 const MAX_PINGS = 10;        // Drossel gegen Flut
-const FETCH_DELAY_MS = 400;  // kleine Pause zwischen Thread-Abrufen
+const FETCH_DELAY_MS = 400;  // kleine Pause zwischen Abrufen
 
 // KI-Check (optional): klassifiziert Antworten nach Sinn statt nach Stichwort.
 // Ohne ANTHROPIC_API_KEY fällt der Wächter automatisch auf die Stichwort-Logik zurück.
@@ -224,8 +226,20 @@ async function notify(item) {
 }
 
 async function main() {
-  const indexHtml = await fetchText(INDEX_URL);
-  const rows = parseIndex(indexHtml);
+  // Übersicht über mehrere Seiten einlesen und nach Thread-ID zusammenführen.
+  const rowsMap = new Map();
+  for (let pg = 0; pg < INDEX_PAGES; pg++) {
+    const url = pg === 0 ? INDEX_URL : `${INDEX_URL}&start=${pg * PER_PAGE}`;
+    try {
+      for (const r of parseIndex(await fetchText(url))) {
+        if (!rowsMap.has(r.tid)) rowsMap.set(r.tid, r);
+      }
+    } catch (e) {
+      console.error(`Übersicht Seite ${pg + 1} nicht lesbar:`, e.message);
+    }
+    if (pg < INDEX_PAGES - 1) await sleep(FETCH_DELAY_MS);
+  }
+  const rows = [...rowsMap.values()];
 
   if (DEBUG) {
     console.log(`\n--- DEBUG: ${rows.length} Threads auf Seite 1 ---`);

@@ -2,33 +2,30 @@ name: Fusion Ticket Watcher
 
 on:
   schedule:
-    - cron: "*/20 * * * *"   # alle ~20 Minuten (GitHub kann unter Last etwas verzögern)
-  workflow_dispatch: {}       # erlaubt manuellen Start per Knopf
+    - cron: "*/5 * * * *"    # alle ~5 Minuten (GitHub kann unter Last etwas verzögern)
+  workflow_dispatch: {}
 
 concurrency:
   group: fusion-watch
   cancel-in-progress: false
 
 permissions:
-  contents: write             # nötig, um state.json zurückzuschreiben
+  contents: write
 
 jobs:
   watch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-
       - name: Forum pruefen
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node watch.mjs
-
       - name: Stand sichern (nur bei Aenderung)
         run: |
           git config user.name "fusion-watcher"

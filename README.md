@@ -4,10 +4,10 @@ Kleiner Wächter, der das öffentliche Fusion-Forum *"Suche & Biete Festivaltick
 und in eine Telegram-Gruppe meldet, sobald ein echtes **Ticket-Angebot** ("Biete") auftaucht.
 
 ## Wie es läuft
-- Läuft automatisch alle ~20 Minuten als GitHub Action (Cloud, 24/7, auch wenn dein Rechner aus ist).
+- Läuft automatisch alle ~5 Minuten als GitHub Action (Cloud, 24/7, auch wenn dein Rechner aus ist).
 - Liest **nur** die öffentliche Forenseite. Kein Login, kein Scraping privater Daten, kein Auto-Posten.
 - Erkennt Angebote auch in ANTWORTEN auf Suche-Threads, nicht nur in Titeln.
-- Meldet Treffer per Telegram-Bot `@Fufu_DBU_bot` in die Gruppe "Fufu 26".
+- Meldet Treffer per Telegram-Bot in deine Telegram-Gruppe.
 
 ## Wichtig (Fairness & Regeln der Fusion)
 - Das Tool **benachrichtigt nur**. Antworten tust du **selbst, eingeloggt**, wie ein normaler Mensch.
