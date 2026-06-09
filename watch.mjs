@@ -171,12 +171,13 @@ function isReplyOffer(text) {
 async function judgeReply(title, text) {
   if (!ANTHROPIC_API_KEY) return { offer: isReplyOffer(text), reason: "Stichwort-Fallback", src: "stichwort" };
   const prompt =
-`Forum "Suche & Biete Fusion-Festival-Tickets". Thread-Titel: "${title}".
-Jemand schrieb diese Antwort:
+`Forum für Fusion-Festival-Tickets. Kontext/Titel: "${title}".
+Text der Person:
 """${text.slice(0, 800)}"""
 
-Bietet diese Person selbst ein Ticket an (abgeben/verkaufen/weitergeben)?
-"false" bei: selbst suchen, Hochschieben ("up"), Nachfragen, Zitate, Sonstiges.
+Bietet diese Person ihr EIGENES Fusion-Festival-EINTRITTSTICKET (Personenticket) zur Weitergabe oder zum Verkauf an? Nur ein echtes Eintrittsticket zählt, alles andere ist false.
+- true NUR bei klarer Abgabe des eigenen Tickets (z.B. "gebe mein Ticket ab", "mein Ticket geht an dich", "kannst meins haben", "hätte noch eins abzugeben").
+- false bei: selbst ein Ticket suchen/annehmen/abnehmen wollen ("würde es dir abnehmen", "nehme es", "take the burden"); Hochschieben ("up"); Fragen ("hat jemand noch eins zu vergeben?"); nur etwas ANDERES anbieten als ein Eintrittsticket, z.B. Autoticket/Fahrzeugticket, Mitfahrgelegenheit oder Plätze im Auto (auch "Plätze von Köln zur Fusion"), Schlafplatz, Gegenleistung; Zitate; Sonstiges.
 Antworte NUR mit JSON: {"offer": true oder false, "grund": "kurz"}`;
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -190,10 +191,11 @@ Antworte NUR mit JSON: {"offer": true oder false, "grund": "kurz"}`;
     }
     const data = await r.json();
     const out = (data.content?.[0]?.text || "").trim();
-    const m = out.match(/\{[\s\S]*\}/);
-    if (m) {
-      const j = JSON.parse(m[0]);
-      return { offer: j.offer === true, reason: j.grund || "", src: "ki" };
+    // Nur das entscheidende Bit robust herausziehen (unabhängig von Anführungszeichen im Begründungstext).
+    const mo = out.match(/"offer"\s*:\s*(true|false)/i);
+    if (mo) {
+      const gm = out.match(/"grund"\s*:\s*"([^"]*)"/);
+      return { offer: /true/i.test(mo[1]), reason: gm ? gm[1] : "", src: "ki" };
     }
     return { offer: isReplyOffer(text), reason: "KI unlesbar, Fallback", src: "stichwort" };
   } catch (e) {
@@ -282,10 +284,13 @@ async function main() {
   let changed = false;
   const queue = [];
 
-  // 1) Titel-Angebote (direkte Biete-Threads; Ankündigungen überspringen)
+  // 1) Titel-Angebote (Biete-Threads): per Stichwort vorfiltern, dann per KI bestätigen.
   for (const r of rows) {
     if (r.sticky) continue;
-    if (isTitleOffer(r.title) && !notified.has("t:" + r.tid)) {
+    if (notified.has("t:" + r.tid)) continue;
+    if (!isTitleOffer(r.title)) continue;
+    const v = await judgeReply(r.title, r.title);
+    if (v.offer) {
       queue.push({ type: "title", tid: r.tid, title: r.title, url: `${BASE}/viewtopic.php?t=${r.tid}` });
     }
   }
